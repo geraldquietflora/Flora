@@ -9,8 +9,7 @@ import os
 # ==========================================
 # 1. CONFIGURACIÓN CON MODELO 2026
 # ==========================================
-API_KEY = "AIzaSyB-jUEYkfY5F8A2Mi1lDmUd0fudntnXPqY"
-
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 # Usamos el modelo 3.1 que apareció en tu lista de diagnóstico
 MODELO = "gemini-3.1-flash-lite-preview"
 URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODELO}:generateContent?key={API_KEY}"
