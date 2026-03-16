@@ -1,7 +1,8 @@
 import streamlit as st
 import google.generativeai as genai  # <--- ESTA ES LA LÍNEA QUE FALTA
 from PIL import Image
-import io  
+import io
+import base64
 
 # Configuración con los Secrets de Streamlit
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
