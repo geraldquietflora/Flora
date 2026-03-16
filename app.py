@@ -7,6 +7,7 @@ import requests
 
 st.set_page_config(page_title="Flora Yucatán IA", page_icon="🌿")
 
+# Configuración de API Key
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=API_KEY)
@@ -20,13 +21,14 @@ def analizar_imagen_directo(img):
         img.save(buf, format='JPEG')
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
         
-        URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        # CAMBIO CLAVE: Usamos la versión 'v1' estable
+        URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
         payload = {
             "contents": [{
                 "parts": [
-                    {"text": "Eres un botánico experto. Identifica la planta de esta foto (nombre científico y común). Si no estás seguro, describe lo que ves y da tu mejor hipótesis científica. No te guardes la respuesta por falta de claridad."},
+                    {"text": "Eres un botánico experto en la Península de Yucatán. Identifica la planta de esta foto (nombre científico y común). Describe brevemente sus características."},
                     {
                         "inline_data": {
                             "mime_type": "image/jpeg",
@@ -34,14 +36,7 @@ def analizar_imagen_directo(img):
                         }
                     }
                 ]
-            }],
-            # ESTO ES LO NUEVO: Bajamos los filtros de seguridad para que siempre responda
-            "safetySettings": [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-            ]
+            }]
         }
         
         response = requests.post(URL, json=payload, headers=headers)
@@ -52,20 +47,24 @@ def analizar_imagen_directo(img):
         elif 'error' in res_json:
             return f"Error de Google: {res_json['error']['message']}"
         else:
-            return "La IA no pudo generar una descripción. Prueba con otra foto u otro ángulo."
+            return "No se pudo generar una respuesta. Intenta con otra foto."
 
     except Exception as e:
         return f"Error técnico: {str(e)}"
 
+# Interfaz simplificada
 st.title("🌿 Flora Yucatán IA")
-foto = st.camera_input("Capturar")
-archivo = st.file_uploader("Galería", type=['jpg', 'jpeg', 'png'])
+st.write("Identificación botánica regional.")
+
+foto = st.camera_input("Capturar planta")
+archivo = st.file_uploader("O cargar desde galería", type=['jpg', 'jpeg', 'png'])
 
 imagen_final = foto if foto is not None else archivo
 
 if imagen_final:
     img = Image.open(imagen_final)
     st.image(img, use_container_width=True)
-    if st.button("🔍 IDENTIFICAR"):
-        with st.spinner("Analizando..."):
-            st.success(f"Resultado:\n\n{analizar_imagen_directo(img)}")
+    if st.button("🔍 IDENTIFICAR ESPECIE"):
+        with st.spinner("Analizando con Gemini 1.5 Flash..."):
+            resultado = analizar_imagen_directo(img)
+            st.success(f"Resultado:\n\n{resultado}")
