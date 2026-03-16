@@ -1,3 +1,21 @@
+import streamlit as st
+import google.generativeai as genai
+from PIL import Image
+import io
+import base64
+import requests
+
+# 1. Configuración de página (Debe ser lo primero después de los imports)
+st.set_page_config(page_title="Flora Yucatán IA", page_icon="🌿")
+
+# 2. Configuración de seguridad segura
+try:
+    API_KEY = st.secrets["GOOGLE_API_KEY"]
+    genai.configure(api_key=API_KEY)
+except Exception as e:
+    st.error("Error con la API KEY en Secrets. Verifica que esté bien escrita.")
+    st.stop()
+
 def analizar_imagen_directo(img):
     try:
         buf = io.BytesIO()
@@ -10,7 +28,7 @@ def analizar_imagen_directo(img):
         payload = {
             "contents": [{
                 "parts": [
-                    {"text": "Identifica esta planta de la Península de Yucatán. Responde el nombre científico y común. Si no puedes identificarla, explica por qué."},
+                    {"text": "Identifica esta planta de la Península de Yucatán. Responde el nombre científico y común. Si no puedes, explica por qué."},
                     {
                         "inline_data": {
                             "mime_type": "image/jpeg",
@@ -24,15 +42,33 @@ def analizar_imagen_directo(img):
         response = requests.post(URL, json=payload, headers=headers)
         res_json = response.json()
         
-        # --- NUEVA VALIDACIÓN DE SEGURIDAD ---
         if 'candidates' in res_json and len(res_json['candidates']) > 0:
-            texto_respuesta = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
-            return texto_respuesta
-        elif 'error' in res_json:
-            return f"Error de Google API: {res_json['error']['message']}"
+            return res_json['candidates'][0]['content']['parts'][0]['text'].strip()
         else:
-            return "La IA no pudo generar un resultado para esta imagen. Intenta con una foto más clara o de más cerca."
-        # -------------------------------------
+            return "La IA no pudo procesar esta imagen. Intenta con una toma más clara."
 
     except Exception as e:
         return f"Error técnico: {str(e)}"
+
+# --- Interfaz ---
+st.title("🌿 Flora Yucatán IA")
+st.write("Herramienta de identificación botánica.")
+
+# Los dos métodos de entrada
+foto = st.camera_input("Captura con la cámara")
+archivo = st.file_uploader("O sube una imagen de tu galería", type=['jpg', 'jpeg', 'png'])
+
+# Selección de imagen
+imagen_final = foto if foto is not None else archivo
+
+if imagen_final:
+    img = Image.open(imagen_final)
+    st.image(img, caption="Imagen cargada", use_container_width=True)
+    
+    if st.button("🔍 IDENTIFICAR ESPECIE"):
+        with st.spinner("Analizando..."):
+            resultado = analizar_imagen_directo(img)
+            st.success(f"Resultado: {resultado}")
+
+st.divider()
+st.info("Desarrollado para apoyo en identificación botánica regional.")
