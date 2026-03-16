@@ -28,7 +28,7 @@ def analizar_imagen_directo(img):
         payload = {
             "contents": [{
                 "parts": [
-                    {"text": "Identifica esta planta de la Península de Yucatán. Responde el nombre científico y común. Si no puedes, explica por qué."},
+                    "text": "Actúa como un botánico experto en la Península de Yucatán. Describe brevemente lo que ves en la imagen e intenta identificar la especie (nombre científico y común). Si la imagen es borrosa, dame tu mejor estimación.",
                     {
                         "inline_data": {
                             "mime_type": "image/jpeg",
