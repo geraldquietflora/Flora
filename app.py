@@ -1,18 +1,9 @@
 import streamlit as st
-import json
-import requests
-import base64
+import google.generativeai as genai  # <--- ESTA ES LA LÍNEA QUE FALTA
 from PIL import Image
-import io
-import os
 
-# ==========================================
-# 1. CONFIGURACIÓN CON MODELO 2026
-# ==========================================
+# Configuración con los Secrets de Streamlit
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-# Usamos el modelo 3.1 que apareció en tu lista de diagnóstico
-MODELO = "gemini-3.1-flash-lite-preview"
-URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODELO}:generateContent?key={API_KEY}"
 
 def analizar_imagen_directo(imagen_pil):
     # Optimizamos la imagen para la red de ECOSUR
