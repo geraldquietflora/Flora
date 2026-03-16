@@ -1,0 +1,7 @@
+[
+  {"nombre_cientifico": "Rhizophora mangle", "nombre_comun": "Mangle Rojo", "nombre_maya": "Tapché", "ecosistema": "Manglar", "estatus_nom059": "Amenazada (A)", "descripcion": "Raíces zancudas; protección costera."},
+  {"nombre_cientifico": "Ceiba pentandra", "nombre_comun": "Ceiba", "nombre_maya": "Ya’axché", "ecosistema": "Selva Mediana", "estatus_nom059": "Sin protección", "descripcion": "Árbol sagrado; fibra de kapok."},
+  {"nombre_cientifico": "Brosimum alicastrum", "nombre_comun": "Ramón", "nombre_maya": "Ox", "ecosistema": "Selva Perennifolia", "estatus_nom059": "Sin protección", "descripcion": "Semilla nutritiva; forraje vital."},
+  {"nombre_cientifico": "Bursera simaruba", "nombre_comun": "Palo Mulato", "nombre_maya": "Chakaj", "ecosistema": "Selva Baja", "estatus_nom059": "Sin protección", "descripcion": "Corteza roja; medicinal (piel)."},
+  {"nombre_cientifico": "Coccothrinax readii", "nombre_comun": "Palma Kuka", "nombre_maya": "Kuka", "ecosistema": "Duna Costera", "estatus_nom059": "Amenazada (A)", "descripcion": "Endémica; ornamental."}
+]
