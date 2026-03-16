@@ -1,61 +1,65 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
+import base64
 from PIL import Image
-import os
+import io
 
-# 1. Configuración de la página
 st.set_page_config(page_title="Flora Yucatán IA", page_icon="🌿")
 
-# 2. Forzar la versión de la API y configurar el modelo
+# 1. Configuración de API Key
 try:
-    # ESTA LÍNEA ES CRÍTICA: Forzamos a que NO use v1beta
-    os.environ["GOOGLE_API_VERSION"] = "v1"
-    
     API_KEY = st.secrets["GOOGLE_API_KEY"]
-    genai.configure(api_key=API_KEY)
-    
-    # Intentamos con el modelo Pro, que suele ser más estable en estos cambios de versión
-    model = genai.GenerativeModel('gemini-1.5-pro')
-except Exception as e:
-    st.error(f"Error de configuración: {e}")
+except:
+    st.error("Falta la API KEY en Secrets.")
     st.stop()
 
-def analizar_con_libreria(img):
+def identificar_planta(img):
     try:
-        instruccion = (
-            "Eres un botánico experto en la Península de Yucatán. "
-            "Identifica esta planta: nombre científico, nombre común y descripción breve. "
-            "Si no estás seguro, da tu mejor hipótesis basada en la morfología visible."
-        )
+        # Preparar la imagen
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG')
+        img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
         
-        response = model.generate_content([instruccion, img])
-        return response.text
+        # URL FORZADA a v1 (Estable) - Sin usar librerías intermedias
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        
+        headers = {'Content-Type': 'application/json'}
+        
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": "Actúa como un botánico experto de la Península de Yucatán. Identifica la planta de la foto: Nombre científico, común y una breve descripción."},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
+                ]
+            }]
+        }
+        
+        response = requests.post(url, json=payload, headers=headers)
+        res_json = response.json()
+        
+        if 'candidates' in res_json:
+            return res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            # Si Google devuelve un error, lo mostramos tal cual para saber qué pasa
+            return f"Respuesta inesperada de Google: {res_json}"
+            
     except Exception as e:
-        # Si el modelo Pro falla, intentamos automáticamente con el Flash por si acaso
-        try:
-            model_flash = genai.GenerativeModel('gemini-1.5-flash')
-            response = model_flash.generate_content([instruccion, img])
-            return response.text
-        except:
-            return f"Error persistente de conexión con Google: {str(e)}. Por favor, intenta de nuevo en unos minutos."
+        return f"Error en el proceso: {str(e)}"
 
-# --- Interfaz de Usuario ---
+# --- Interfaz ---
 st.title("🌿 Flora Yucatán IA")
-st.write("Identificación botánica profesional.")
+st.write("Herramienta de identificación botánica.")
 
 foto = st.camera_input("Capturar planta")
 archivo = st.file_uploader("O cargar imagen", type=['jpg', 'jpeg', 'png'])
 
-imagen_final = foto if foto is not None else archivo
+img_input = foto if foto is not None else archivo
 
-if imagen_final:
-    img = Image.open(imagen_final)
+if img_input:
+    img = Image.open(img_input)
     st.image(img, use_container_width=True)
     
-    if st.button("🔍 IDENTIFICAR ESPECIE"):
-        with st.spinner("Consultando servidores de Google (v1)..."):
-            resultado = analizar_con_libreria(img)
+    if st.button("🔍 IDENTIFICAR"):
+        with st.spinner("Conectando directamente con el servidor v1..."):
+            resultado = identificar_planta(img)
             st.success(f"Resultado:\n\n{resultado}")
-
-st.divider()
-st.info("Desarrollado para el estudio de la biodiversidad regional.")
