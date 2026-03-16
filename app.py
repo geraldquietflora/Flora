@@ -4,83 +4,63 @@ import base64
 from PIL import Image
 import io
 
-# 1. Configuración básica de la página
 st.set_page_config(page_title="Flora Yucatán IA", page_icon="🌿")
 
-# 2. Validación de la API KEY
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Error: No se encontró la llave 'GOOGLE_API_KEY' en los Secrets de Streamlit.")
+    st.error("Error: Configura la llave 'GOOGLE_API_KEY' en los Secrets de Streamlit.")
     st.stop()
 
 API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 def identificar_planta(img):
     try:
-        # Procesar imagen para enviarla
         buf = io.BytesIO()
         img.save(buf, format='JPEG')
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
         
-        # PROTOTIPO DE URL ACTUALIZADO: v1beta con el modelo flash-latest
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={API_KEY}"
-        
+        # URL estable v1beta
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         
         payload = {
             "contents": [{
                 "parts": [
-                    {
-                        "text": "Actúa como un botánico experto en la flora de la Península de Yucatán. Identifica la planta de esta foto. Dame el nombre científico, el nombre común y una descripción breve de sus características botánicas."
-                    },
-                    {
-                        "inline_data": {
-                            "mime_type": "image/jpeg",
-                            "data": img_b64
-                        }
-                    }
+                    {"text": "Identifica esta planta de la Península de Yucatán. Dame nombre científico, común y descripción."},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
                 ]
-            }],
-            "safetySettings": [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-            ]
+            }]
         }
         
-        # Petición directa al servidor de Google
         response = requests.post(url, json=payload, headers=headers)
         res_json = response.json()
         
+        # --- NUEVA LÓGICA DE EXTRACCIÓN ROBUSTA ---
         if 'candidates' in res_json and len(res_json['candidates']) > 0:
-            return res_json['candidates'][0]['content']['parts'][0]['text']
+            candidate = res_json['candidates'][0]
+            if 'content' in candidate and 'parts' in candidate['content']:
+                return candidate['content']['parts'][0]['text']
+            else:
+                return f"Google no generó texto. Razón de bloqueo: {candidate.get('finishReason', 'Desconocida')}"
         elif 'error' in res_json:
-            return f"Error técnico de Google: {res_json['error']['message']}"
+            return f"Error de la API: {res_json['error']['message']}"
         else:
-            return "La IA no pudo procesar esta imagen específica. Intenta con una toma más clara o con otra planta."
+            return f"Respuesta cruda del servidor: {res_json}"
             
     except Exception as e:
         return f"Error en la aplicación: {str(e)}"
 
-# --- INTERFAZ DE USUARIO ---
+# --- INTERFAZ ---
 st.title("🌿 Flora Yucatán IA")
-st.markdown("### Identificación Botánica con Inteligencia Artificial")
-st.write("Herramienta diseñada para el estudio de la biodiversidad regional.")
+foto = st.camera_input("Capturar")
+archivo = st.file_uploader("Galería", type=['jpg', 'jpeg', 'png'])
 
-# Opciones de entrada de imagen
-foto = st.camera_input("Capturar con la cámara del dispositivo")
-archivo = st.file_uploader("O cargar una imagen desde la galería", type=['jpg', 'jpeg', 'png'])
-
-# Lógica para seleccionar la fuente de la imagen
 img_input = foto if foto is not None else archivo
 
 if img_input:
-    # Mostrar la imagen cargada
     img = Image.open(img_input)
-    st.image(img, caption="Muestra para análisis", use_container_width=True)
-    
-    # Botón de acción
+    st.image(img, use_container_width=True)
     if st.button("🔍 IDENTIFICAR ESPECIE"):
-        with st.spinner("Analizando morfología botánica..."):
+        with st.spinner("Analizando..."):
             resultado = identificar_planta(img)
-            st.success("### Resultado del Análisis:")
+            st.markdown("### Resultado del Análisis:")
+            st.info(resultado) # Usamos info para que resalte más el texto
