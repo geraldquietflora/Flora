@@ -1,59 +1,52 @@
 import streamlit as st
-import requests
-import base64
+import google.generativeai as genai
 from PIL import Image
-import io
 
 st.set_page_config(page_title="Flora Yucatán IA", page_icon="🌿")
 
-# Recuperar la llave
+# 1. Configuración de seguridad
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Error: Configura la llave en los Secrets.")
+    st.error("⚠️ La llave no se encuentra en los Secrets de Streamlit.")
     st.stop()
 
-API_KEY = st.secrets["GOOGLE_API_KEY"]
+# 2. Inicialización limpia
+try:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    # Usamos la versión flash que es la más rápida y gratuita
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except Exception as e:
+    st.error(f"Error al configurar Google AI: {e}")
 
-def identificar_planta(img):
+def identificar(img):
     try:
-        buf = io.BytesIO()
-        img.save(buf, format='JPEG')
-        img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        # Prompt directo y científico
+        prompt = "Identifica esta planta de la Península de Yucatán. Dame Nombre científico, Nombre común y una descripción breve."
+        # Enviamos la imagen directamente
+        response = model.generate_content([prompt, img])
         
-        # CAMBIO DE MODELO: Usamos el modelo estable 'gemini-1.5-flash' sin sufijos
-        # y forzamos la versión v1 de la API
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-        
-        payload = {
-            "contents": [{
-                "parts": [
-                    {"text": "Eres un botánico experto. Identifica esta planta de la Península de Yucatán."},
-                    {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
-                ]
-            }]
-        }
-        
-        response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
-        res_json = response.json()
-        
-        if 'candidates' in res_json:
-            return res_json['candidates'][0]['content']['parts'][0]['text']
+        if response.text:
+            return response.text
         else:
-            # Si vuelve a fallar, el código imprimirá TODO lo que Google dice para ver el error real
-            return f"Respuesta completa del servidor: {res_json}"
-            
+            return "El servidor respondió pero no generó texto. Intenta con otra foto."
     except Exception as e:
-        return f"Error técnico: {str(e)}"
+        # Este mensaje nos dirá si la llave sigue bloqueada o si el modelo no existe
+        return f"Aviso del sistema: {str(e)}"
 
+# --- INTERFAZ ---
 st.title("🌿 Flora Yucatán IA")
-foto = st.camera_input("Capturar")
-archivo = st.file_uploader("Galería", type=['jpg', 'jpeg', 'png'])
+st.write("Herramienta de identificación botánica regional.")
+
+foto = st.camera_input("Capturar planta")
+archivo = st.file_uploader("Subir imagen", type=['jpg', 'jpeg', 'png'])
 
 img_input = foto if foto is not None else archivo
 
 if img_input:
     img = Image.open(img_input)
     st.image(img, use_container_width=True)
-    if st.button("🔍 IDENTIFICAR"):
-        with st.spinner("Probando conexión final..."):
-            resultado = identificar_planta(img)
-            st.success(f"Resultado:\n\n{resultado}")
+    
+    if st.button("🔍 ANALIZAR ESPECIE"):
+        with st.spinner("Procesando morfología..."):
+            resultado = identificar(img)
+            st.markdown("### Resultado:")
+            st.info(resultado)
