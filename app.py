@@ -1,86 +1,65 @@
 import streamlit as st
 from google import genai
 from PIL import Image
+import time
 
-# 1. Configuración de la aplicación (Debe ser la primera instrucción de Streamlit)
-st.set_page_config(
-    page_title="Flora - Identificador Botánico",
-    page_icon="🌿",
-    layout="centered"
-)
+# 1. Configuración de página
+st.set_page_config(page_title="Flora - ID Botánico", layout="centered", page_icon="🌿")
 
-# Estilos visuales para una interfaz limpia y profesional
-st.markdown("""
-    <style>
-    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #2e7d32; color: white; font-weight: bold; }
-    .stCamera { border: 2px solid #2e7d32; border-radius: 15px; }
-    </style>
-    """, unsafe_allow_html=True)
+# Estilo para el botón
+st.markdown("<style>.stButton>button {width:100%; background-color: #2e7d32; color: white; font-weight: bold; height: 3em; border-radius: 10px;}</style>", unsafe_allow_html=True)
 
 st.title("🌿 Flora: Análisis Botánico")
-st.write("Herramienta de identificación científica asistida por IA.")
+st.write("Identificación científica de especies vegetales.")
 
-# 2. Conexión con la API de Google Gemini (Librería google-genai)
+# 2. Inicialización del cliente con Secrets
 try:
-    # El código busca la llave en Settings > Secrets de Streamlit Cloud
-    # Formato esperado en Secrets: GOOGLE_API_KEY = "tu_llave_aqui"
     client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 except Exception:
-    st.error("⚠️ Configuración requerida: Por favor, añade tu 'GOOGLE_API_KEY' en los Secrets de Streamlit Cloud.")
+    st.error("⚠️ Error: Configura 'GOOGLE_API_KEY' en los Secrets de Streamlit Cloud.")
     st.stop()
 
-# 3. Interfaz de captura de imagen
-opcion = st.radio("Selecciona fuente de imagen:", ["📷 Cámara", "📁 Galería/Archivo"], horizontal=True)
+# 3. Entrada de imagen
+opcion = st.radio("Fuente:", ["📷 Cámara", "📁 Archivo"], horizontal=True)
+archivo = st.camera_input("Capturar") if opcion == "📷 Cámara" else st.file_uploader("Sube imagen", type=["jpg", "png", "jpeg"])
 
-archivo_imagen = None
-if opcion == "📷 Cámara":
-    archivo_imagen = st.camera_input("Toma una foto de la planta")
-else:
-    archivo_imagen = st.file_uploader("Sube un archivo de imagen", type=["jpg", "jpeg", "png"])
-
-# 4. Procesamiento y Análisis Científico
-if archivo_imagen is not None:
-    # Vista previa si se sube un archivo (la cámara ya muestra su propia vista)
-    if opcion == "📁 Galería/Archivo":
-        img_preview = Image.open(archivo_imagen)
-        st.image(img_preview, caption="Imagen seleccionada", use_container_width=True)
+if archivo:
+    img = Image.open(archivo)
+    if opcion == "📁 Archivo":
+        st.image(img, use_container_width=True)
 
     if st.button("🔍 INICIAR IDENTIFICACIÓN"):
-        with st.spinner('Analizando especie con Gemini 2.0 Flash...'):
-            try:
-                # Convertir archivo a objeto Image de Pillow
-                img_analizar = Image.open(archivo_imagen)
-                
-                # Prompt estructurado para resultados de nivel investigación
-                prompt_botanico = (
-                    "Actúa como un botánico experto en flora neotropical. "
-                    "Analiza la imagen y proporciona la siguiente información: "
-                    "1. Nombre científico y familia botánica. "
-                    "2. Nombres comunes (incluye nombres en Maya si es nativa de la región). "
-                    "3. Hábitat típico y distribución geográfica. "
-                    "4. Características morfológicas clave visibles. "
-                    "5. Importancia ecológica o estatus de conservación (NOM-059 o UICN)."
-                )
+        with st.spinner('Analizando con IA de alta precisión...'):
+            # Definimos el prompt científico una sola vez
+            prompt = (
+                "Identifica esta planta. Proporciona: Nombre científico, familia, "
+                "nombres comunes (incluye nombres en Maya si es de la región), "
+                "distribución y estatus de conservación (NOM-059/UICN)."
+            )
+            
+            # Lógica de respaldo (Failover): Intentar 2.0, si falla, intentar 1.5
+            modelos_a_probar = ["gemini-2.0-flash", "gemini-1.5-flash"]
+            exito = False
+            
+            for nombre_modelo in modelos_a_probar:
+                try:
+                    response = client.models.generate_content(
+                        model=nombre_modelo,
+                        contents=[prompt, img]
+                    )
+                    st.success(f"Análisis completado (Modelo: {nombre_modelo})")
+                    st.markdown(f"### Resultado:\n{response.text}")
+                    exito = True
+                    break # Si funciona, salimos del bucle
+                except Exception as e:
+                    if "429" in str(e):
+                        continue # Si es error de cuota, probamos el siguiente modelo
+                    else:
+                        st.error(f"Error con {nombre_modelo}: {e}")
+                        break
+            
+            if not exito:
+                st.warning("⚠️ Google Cloud aún limita tu cuota. Esto sucede durante las primeras 24-48h de activar una tarjeta. Por favor, reintenta en unos minutos.")
 
-                # Llamada al modelo 2.0 Flash (estándar actual)
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=[prompt_botanico, img_analizar]
-                )
-
-                st.success("Análisis Botánico Completado")
-                st.markdown("### Ficha Técnica de la Especie")
-                st.info(response.text)
-
-            except Exception as e:
-                # Manejo de errores amigable
-                if "429" in str(e):
-                    st.warning("⏳ Cuota excedida: Google ha limitado las peticiones gratuitas por ahora. Intenta de nuevo en unos minutos.")
-                elif "403" in str(e):
-                    st.error("🚫 Error 403: Tu API Key ha sido bloqueada o reportada como filtrada. Genera una nueva en Google AI Studio.")
-                else:
-                    st.error(f"Error técnico en la comunicación: {e}")
-
-# Pie de página
-st.markdown("---")
-st.caption("Investigación y Desarrollo | Gemini 2.0 Flash API")
+st.divider()
+st.caption("Investigación y Desarrollo | Google Cloud Pay-as-you-go")
