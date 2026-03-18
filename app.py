@@ -1,45 +1,39 @@
-import streamlit as st
 import google.generativeai as genai
-from PIL import Image
+import os
 
-st.set_page_config(page_title="Flora Yucatán IA", page_icon="🌿")
+# 1. CONFIGURACIÓN DE SEGURIDAD
+# Sustituye el texto entre comillas por tu clave real de Google AI Studio
+API_KEY = "AIzaSyA12GiqlG50X_kT6iPBIXGGnq1pGuFXXl0"
 
-# Conexión con tu API Key
-if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("⚠️ Configura la llave en los Secrets de Streamlit.")
-    st.stop()
+try:
+    genai.configure(api_key=API_KEY)
+    
+    # 2. SELECCIÓN DEL MODELO
+    # Usamos 'gemini-1.5-flash' que es el estándar actual. 
+    # Si este falla, el bloque 'except' nos dirá por qué.
+    model_name = 'gemini-1.5-flash' 
+    model = genai.GenerativeModel(model_name)
 
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    # 3. FUNCIÓN PRINCIPAL DE PRUEBA
+    def generar_respuesta(promp_usuario):
+        try:
+            print(f"--- Enviando pregunta a {model_name}... ---")
+            response = model.generate_content(promp_usuario)
+            return response.text
+        except Exception as e:
+            return f"Error al generar contenido: {str(e)}"
 
-def identificar_especie(img):
-    try:
-        # Ahora usamos el 1.5 Flash sin miedo al límite
-        model = genai.GenerativeModel('gemini-1.5-flash')
+    # 4. EJECUCIÓN (Aquí es donde ocurre la magia)
+    if __name__ == "__main__":
+        print("SISTEMA INICIADO")
+        pregunta = "Hola, ¿estás configurado correctamente? Responde brevemente."
         
-        prompt = (
-            "Eres un botánico experto en la Península de Yucatán. Identifica esta planta: "
-            "1. Nombre científico (cursivas). 2. Nombre común regional. "
-            "3. Familia. 4. Nota breve de su ecología local."
-        )
+        resultado = generar_respuesta(pregunta)
         
-        response = model.generate_content([prompt, img])
-        return response.text
-    except Exception as e:
-        return f"Aviso del sistema: {str(e)}"
+        print("\nRESPUESTA DEL MODELO:")
+        print("-" * 30)
+        print(resultado)
+        print("-" * 30)
 
-# --- INTERFAZ ---
-st.title("🌿 Flora Yucatán IA (Modo Profesional)")
-st.caption("Uso de alta capacidad habilitado para investigación.")
-
-foto = st.camera_input("Capturar planta")
-archivo = st.file_uploader("Subir imagen", type=['jpg', 'jpeg', 'png'])
-
-img_input = foto if foto is not None else archivo
-
-if img_input:
-    img = Image.open(img_input)
-    st.image(img, use_container_width=True)
-    if st.button("🔍 ANALIZAR AHORA"):
-        with st.spinner("Procesando con capacidad ilimitada..."):
-            resultado = identificar_especie(img)
-            st.success(resultado)
+except Exception as e:
+    print(f"ERROR CRÍTICO DE CONFIGURACIÓN: {e}")
