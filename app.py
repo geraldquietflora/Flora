@@ -2,23 +2,28 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-st.set_page_config(page_title="Flora Yucatán IA", page_icon="🌿")
+# 1. Configuración de la página y estética
+st.set_page_config(page_title="Flora Yucatán IA", page_icon="🌿", layout="centered")
 
-# 1. Configuración de la API
+# 2. Conexión con la API (Seguridad en Secrets)
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("⚠️ Configura la llave en los Secrets de Streamlit.")
+    st.error("⚠️ Configura la llave 'GOOGLE_API_KEY' en los Secrets de Streamlit.")
     st.stop()
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-def identificar(img):
+def identificar_especie(img):
     try:
-        # USAMOS EL MODELO QUE APARECE EN TU CAPTURA DE PANTALLA
-        model = genai.GenerativeModel('gemini-3-flash-preview')
+        # CAMBIO ESTRATÉGICO: Usamos 1.5 Flash para tener 1,500 intentos diarios
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = (
-            "Eres un botánico experto de la Península de Yucatán. "
-            "Identifica esta planta: nombre científico, común y descripción breve."
+            "Actúa como un botánico experto especializado en la Península de Yucatán. "
+            "Analiza la imagen e identifica la planta. Proporciona: "
+            "1. Nombre científico (en cursivas). "
+            "2. Nombre común regional. "
+            "3. Familia botánica. "
+            "4. Descripción breve de sus rasgos clave y su importancia ecológica en la región."
         )
         
         response = model.generate_content([prompt, img])
@@ -26,19 +31,28 @@ def identificar(img):
     except Exception as e:
         return f"Aviso del sistema: {str(e)}"
 
-# --- INTERFAZ ---
+# --- INTERFAZ DE USUARIO ---
 st.title("🌿 Flora Yucatán IA")
-st.write("Identificación botánica con Gemini 3 Flash")
+st.markdown("### Identificación Botánica Profesional (v1.5 Flash)")
+st.write("Herramienta optimizada para investigación y monitoreo biológico.")
 
-foto = st.camera_input("Capturar planta")
-archivo = st.file_uploader("Subir imagen", type=['jpg', 'jpeg', 'png'])
+# Captura de datos
+foto = st.camera_input("Capturar con la cámara del dispositivo")
+archivo = st.file_uploader("O cargar desde la galería", type=['jpg', 'jpeg', 'png'])
 
 img_input = foto if foto is not None else archivo
 
 if img_input:
+    # Procesamiento de imagen
     img = Image.open(img_input)
-    st.image(img, use_container_width=True)
-    if st.button("🔍 IDENTIFICAR"):
-        with st.spinner("Analizando con Gemini 3..."):
-            resultado = identificar(img)
+    st.image(img, caption="Muestra para análisis", use_container_width=True)
+    
+    if st.button("🔍 INICIAR IDENTIFICACIÓN"):
+        with st.spinner("Consultando base de datos botánica..."):
+            resultado = identificar_especie(img)
+            st.divider()
+            st.markdown("### Resultado del Análisis:")
             st.success(resultado)
+
+st.divider()
+st.caption("Desarrollado para el apoyo a la investigación en el Sureste de México. Limite: 1,500 consultas/día.")
