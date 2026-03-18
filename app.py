@@ -3,58 +3,82 @@ from google import genai
 from PIL import Image
 import io
 
-# --- CONFIGURACIÓN CORRECTA DE LA PÁGINA ---
-st.set_page_config(page_title="Flora - Identificador de Plantas", layout="centered")
+# 1. Configuración de la interfaz (Nombre de función corregido)
+st.set_page_config(
+    page_title="Flora - Identificador Botánico",
+    page_icon="🌿",
+    layout="centered"
+)
 
-st.title("🌿 Flora: Identificación de Plantas")
-st.write("Toma una foto o sube un archivo para analizar la especie.")
+# Estilos para mejorar la apariencia en dispositivos móviles
+st.markdown("""
+    <style>
+    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #2e7d32; color: white; font-weight: bold; }
+    .stCamera { border: 2px solid #2e7d32; border-radius: 15px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Inicialización del cliente de Gemini
+st.title("🌿 Flora: Análisis Botánico")
+st.write("Herramienta de identificación asistida por IA para investigación y campo.")
+
+# 2. Conexión con la API (Nueva librería google-genai)
 try:
-    # Asegúrate de que la clave esté en Settings > Secrets de Streamlit Cloud
+    # Recuerda configurar GOOGLE_API_KEY en Settings > Secrets de Streamlit Cloud
     client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
-except Exception as e:
-    st.error("Error de configuración: Revisa los Secrets en Streamlit Cloud.")
+except Exception:
+    st.error("⚠️ Error: No se detecta la API Key en los Secrets de Streamlit.")
     st.stop()
 
-# --- OPCIONES DE ENTRADA ---
-opcion = st.radio("Selecciona fuente de imagen:", ["Cámara", "Subir Archivo"], horizontal=True)
+# 3. Selección de entrada de imagen
+opcion = st.radio("Fuente de la imagen:", ["📷 Cámara", "📁 Galería/Archivo"], horizontal=True)
 
-uploaded_file = None
-
-if opcion == "Cámara":
-    # Este componente abre la cámara directamente en móviles y laptops
-    uploaded_file = st.camera_input("Toma una foto de la planta")
+archivo_imagen = None
+if opcion == "📷 Cámara":
+    archivo_imagen = st.camera_input("Captura la planta")
 else:
-    # Opción para archivos guardados
-    uploaded_file = st.file_uploader("Elige una imagen...", type=["jpg", "jpeg", "png"])
+    archivo_imagen = st.file_uploader("Selecciona una imagen", type=["jpg", "jpeg", "png"])
 
-# --- PROCESAMIENTO ---
-if uploaded_file is not None:
-    # Abrir la imagen con Pillow
-    image = Image.open(uploaded_file)
-    
-    # Mostrar vista previa solo si es archivo subido (camera_input ya la muestra)
-    if opcion == "Subir Archivo":
-        st.image(image, caption='Imagen cargada', use_container_width=True)
-    
-    if st.button("Identificar Planta"):
-        with st.spinner('Analizando con Gemini 2.0 Flash...'):
+# 4. Procesamiento y Análisis Científico
+if archivo_imagen is not None:
+    # Vista previa para archivos subidos
+    if opcion == "📁 Galería/Archivo":
+        img_display = Image.open(archivo_imagen)
+        st.image(img_display, caption="Imagen seleccionada", use_container_width=True)
+
+    if st.button("🔍 IDENTIFICAR ESPECIE"):
+        with st.spinner('Consultando base de datos botánica...'):
             try:
-                # El nuevo método de la librería google-genai
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=[
-                        "Actúa como un experto en botánica. Identifica esta planta, dime su nombre científico, "
-                        "familia, hábitat natural y si es nativa de la región neotropical.",
-                        image
-                    ]
+                # Abrimos la imagen para el modelo
+                img_analizar = Image.open(archivo_imagen)
+                
+                # Prompt optimizado para tu perfil de investigador
+                prompt_cientifico = (
+                    "Actúa como un botánico experto en flora neotropical. "
+                    "Analiza la imagen y proporciona: "
+                    "1. Nombre científico y familia botánica. "
+                    "2. Nombres comunes (incluyendo nombres en Maya si es nativa de la región). "
+                    "3. Hábitat típico y distribución geográfica. "
+                    "4. Características morfológicas clave para su identificación. "
+                    "5. Importancia ecológica o estatus de conservación (NOM-059/UICN)."
                 )
-                st.success("Análisis completo")
-                st.markdown(f"### Resultado:\n{response.text}")
+
+                # Usamos Gemini 1.5 Flash por ser el más estable en cuota gratuita
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=[prompt_cientifico, img_analizar]
+                )
+
+                st.success("Análisis Botánico Completado")
+                st.markdown("### Ficha Técnica")
+                st.info(response.text)
+
             except Exception as e:
-                st.error(f"Error al conectar con la API: {e}")
+                # Manejo amigable del error de cuota (429)
+                if "429" in str(e):
+                    st.warning("⏳ **Límite de cuota alcanzado:** Google ha restringido las peticiones gratuitas momentáneamente. Por favor, intenta de nuevo en unos minutos.")
+                else:
+                    st.error(f"Error en la comunicación con la API: {e}")
 
 # Pie de página
 st.markdown("---")
-st.caption("Desarrollado con Gemini 2.0 Flash API")
+st.caption("Investigación y Desarrollo | Gemini 1.5 Flash API")
