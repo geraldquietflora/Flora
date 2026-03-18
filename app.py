@@ -10,42 +10,23 @@ if "GOOGLE_API_KEY" not in st.secrets:
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-def encontrar_mejor_modelo():
-    """Busca dinámicamente qué modelo de visión tienes activo."""
-    try:
-        modelos = genai.list_models()
-        # Buscamos modelos que soporten imágenes (generación de contenido)
-        for m in modelos:
-            if 'generateContent' in m.supported_generation_methods:
-                # Prioridad 1: Gemini 3 (el que viste en tu pantalla)
-                if 'gemini-3-flash' in m.name:
-                    return m.name
-                # Prioridad 2: Gemini 1.5 Flash
-                if 'gemini-1.5-flash' in m.name:
-                    return m.name
-        # Si no encuentra esos, toma el primero que diga gemini
-        for m in modelos:
-            if 'gemini' in m.name:
-                return m.name
-    except Exception as e:
-        st.error(f"Error al listar modelos: {e}")
-    return None
-
 def identificar(img):
     try:
-        nombre_modelo = encontrar_mejor_modelo()
-        if not nombre_modelo:
-            return "No se encontraron modelos de IA activos en esta cuenta."
+        # FORZAMOS EL MODELO DE ALTA CUOTA (1,500 al día)
+        # Usamos el nombre base sin el sufijo 'preview'
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Mostramos qué modelo estamos usando para diagnóstico
-        st.info(f"🔬 Conectado con: `{nombre_modelo}`")
+        st.info("🔬 Usando: `Gemini 1.5 Flash` (Cuota alta)")
         
-        model = genai.GenerativeModel(nombre_modelo)
-        prompt = "Identifica esta planta de la Península de Yucatán: nombre científico, común y descripción."
+        prompt = (
+            "Eres un botánico experto de la Península de Yucatán. "
+            "Identifica esta planta: nombre científico, común y descripción breve."
+        )
         
         response = model.generate_content([prompt, img])
         return response.text
     except Exception as e:
+        # Si el 1.5 da error 404, el sistema nos lo dirá aquí
         return f"Aviso del sistema: {str(e)}"
 
 # --- INTERFAZ ---
@@ -60,9 +41,6 @@ if img_input:
     img = Image.open(img_input)
     st.image(img, use_container_width=True)
     if st.button("🔍 ANALIZAR ESPECIE"):
-        with st.spinner("Buscando en la base de datos..."):
+        with st.spinner("Consultando herbario digital..."):
             resultado = identificar(img)
             st.success(resultado)
-
-st.divider()
-st.caption("Esta versión detecta automáticamente el modelo disponible en tu región.")
