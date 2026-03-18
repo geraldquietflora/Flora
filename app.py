@@ -1,39 +1,50 @@
-import google.generativeai as genai
-import os
+import streamlit as st
+from google import genai
+from PIL import Image
+import io
 
-# 1. CONFIGURACIÓN DE SEGURIDAD
-# Sustituye el texto entre comillas por tu clave real de Google AI Studio
-API_KEY = "AIzaSyA12GiqlG50X_kT6iPBIXGGnq1pGuFXXl0"
+# Configuración de la página
+st.set_page_config(page_title="Flora - Identificador de Plantas", layout="centered")
 
+st.title("🌿 Flora: Identificación de Plantas")
+st.write("Sube una foto para analizar la especie y sus características.")
+
+# Inicialización del cliente de Gemini usando Secrets de Streamlit
+# Asegúrate de tener GOOGLE_API_KEY en Settings > Secrets de Streamlit Cloud
 try:
-    genai.configure(api_key=API_KEY)
-    
-    # 2. SELECCIÓN DEL MODELO
-    # Usamos 'gemini-1.5-flash' que es el estándar actual. 
-    # Si este falla, el bloque 'except' nos dirá por qué.
-    model_name = 'gemini-1.5-flash' 
-    model = genai.GenerativeModel(model_name)
-
-    # 3. FUNCIÓN PRINCIPAL DE PRUEBA
-    def generar_respuesta(promp_usuario):
-        try:
-            print(f"--- Enviando pregunta a {model_name}... ---")
-            response = model.generate_content(promp_usuario)
-            return response.text
-        except Exception as e:
-            return f"Error al generar contenido: {str(e)}"
-
-    # 4. EJECUCIÓN (Aquí es donde ocurre la magia)
-    if __name__ == "__main__":
-        print("SISTEMA INICIADO")
-        pregunta = "Hola, ¿estás configurado correctamente? Responde brevemente."
-        
-        resultado = generar_respuesta(pregunta)
-        
-        print("\nRESPUESTA DEL MODELO:")
-        print("-" * 30)
-        print(resultado)
-        print("-" * 30)
-
+    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 except Exception as e:
-    print(f"ERROR CRÍTICO DE CONFIGURACIÓN: {e}")
+    st.error("Error de configuración: No se encontró la API Key en los Secrets.")
+    st.stop()
+
+# Selector de archivos
+uploaded_file = st.file_uploader("Elige una imagen de una planta...", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    # Mostrar la imagen cargada
+    image = Image.open(uploaded_file)
+    st.image(image, caption='Imagen cargada', use_container_width=True)
+    
+    # Botón para analizar
+    if st.button("Identificar Planta"):
+        with st.spinner('Analizando con Gemini...'):
+            try:
+                # Usamos el modelo flash que es más rápido y eficiente para identificación
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[
+                        "Actúa como un experto en botánica. Identifica esta planta, dime su nombre científico, "
+                        "nombre común, hábitat natural y cuidados básicos si es una planta de jardín.",
+                        image
+                    ]
+                )
+                
+                st.subheader("Resultados del Análisis:")
+                st.write(response.text)
+                
+            except Exception as e:
+                st.error(f"Hubo un error al procesar la imagen: {e}")
+
+# Pie de página
+st.markdown("---")
+st.caption("Desarrollado con Gemini 2.0 Flash API")
