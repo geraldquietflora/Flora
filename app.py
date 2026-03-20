@@ -6,7 +6,7 @@ from PIL import Image
 st.set_page_config(page_title="Flora ID", layout="centered", page_icon="🌿")
 
 st.title("🌿 Flora: Análisis Botánico")
-st.write("Identificación científica de especies.")
+st.write("Identificación científica de especies para ECOSUR.")
 
 # 2. Configuración simple de la API
 if "GOOGLE_API_KEY" not in st.secrets:
@@ -20,16 +20,16 @@ archivo = st.camera_input("Capturar planta") or st.file_uploader("Subir imagen",
 
 if archivo:
     if st.button("🔍 IDENTIFICAR"):
-        with st.spinner('Procesando...'):
+        with st.spinner('Procesando imagen...'):
             try:
-                # Usamos el modelo 1.5 Flash (el más estable para visión)
+                # Usamos el modelo estándar
                 model = genai.GenerativeModel('gemini-1.5-flash')
                 img = Image.open(archivo)
                 
                 prompt = (
                     "Actúa como un botánico experto. Identifica esta planta y proporciona: "
-                    "Nombre científico, familia, nombres comunes (incluye Maya), "
-                    "hábitat y estatus de conservación NOM-059."
+                    "Nombre científico, familia, nombres comunes (incluye nombres en Maya si es de la región), "
+                    "hábitat y estatus de conservación NOM-059/UICN."
                 )
                 
                 response = model.generate_content([prompt, img])
