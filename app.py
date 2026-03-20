@@ -2,20 +2,18 @@ import streamlit as st
 from google import genai
 from PIL import Image
 
-# 1. Configuración de página (Indispensable al inicio)
+# 1. Configuración inicial
 st.set_page_config(page_title="Flora - ID Botánico", layout="centered", page_icon="🌿")
-
-st.markdown("<style>.stButton>button {width:100%; background-color: #2e7d32; color: white; font-weight: bold; height: 3em; border-radius: 10px;}</style>", unsafe_allow_html=True)
 
 st.title("🌿 Flora: Análisis Botánico")
 st.write("Identificación científica de especies vegetales.")
 
 # 2. Inicialización del cliente
 try:
-    # Lee la llave desde Settings > Secrets en Streamlit Cloud
+    # Usa la API Key de tus Secrets de Streamlit
     client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 except Exception:
-    st.error("⚠️ Error: Configura 'GOOGLE_API_KEY' en los Secrets de Streamlit.")
+    st.error("⚠️ Configura 'GOOGLE_API_KEY' en los Secrets de Streamlit.")
     st.stop()
 
 # 3. Entrada de imagen
@@ -28,7 +26,7 @@ if archivo:
         st.image(img, use_container_width=True)
 
     if st.button("🔍 INICIAR IDENTIFICACIÓN"):
-        with st.spinner('Conectando con Google Cloud...'):
+        with st.spinner('Procesando...'):
             try:
                 prompt = (
                     "Actúa como un botánico experto. Identifica esta planta y proporciona: "
@@ -36,10 +34,11 @@ if archivo:
                     "distribución neotropical y estatus de conservación (NOM-059/UICN)."
                 )
 
-                # USAMOS EL NOMBRE TÉCNICO COMPLETO PARA EVITAR EL ERROR 404
-                # Este nombre es el estándar para cuentas de pago en Google Cloud
+                # EL CAMBIO DEFINITIVO:
+                # En cuentas de pago de Google Cloud, el modelo DEBE llevar el prefijo 'models/'
+                # para que la librería lo encuentre correctamente.
                 response = client.models.generate_content(
-                    model="gemini-1.5-flash", 
+                    model="models/gemini-2.0-flash", 
                     contents=[prompt, img]
                 )
 
@@ -47,18 +46,19 @@ if archivo:
                 st.markdown(f"### Resultado:\n{response.text}")
 
             except Exception as e:
-                if "429" in str(e):
-                    st.warning("⏳ Límite de cuota alcanzado. Google Cloud está procesando la validación de tu tarjeta. Intenta en unos minutos.")
-                elif "404" in str(e):
-                    # Si el 1.5 falla, intentamos el 2.0 con el nombre técnico
+                # Si el 2.0 falla por ser muy nuevo en tu región, intenta el 1.5 con el prefijo correcto
+                if "404" in str(e) or "429" in str(e):
                     try:
-                        response = client.models.generate_content(model="gemini-2.0-flash", contents=[prompt, img])
-                        st.success("Análisis completado (Modelo 2.0)")
+                        response = client.models.generate_content(
+                            model="models/gemini-1.5-flash",
+                            contents=[prompt, img]
+                        )
+                        st.success("Análisis completado (Respaldo)")
                         st.markdown(response.text)
-                    except:
-                        st.error("Error: El modelo no responde. Verifica que la API de Gemini esté habilitada en tu consola de Google Cloud.")
+                    except Exception as e_final:
+                        st.error(f"Error persistente de cuota o modelo: {e_final}")
                 else:
-                    st.error(f"Detalle del error: {e}")
+                    st.error(f"Error técnico: {e}")
 
 st.divider()
-st.caption("Unidad de Apoyo a la Investigación | Facturación Activa")
+st.caption("Investigación Científica | Google Cloud")
