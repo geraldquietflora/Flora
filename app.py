@@ -2,60 +2,31 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-# 1. Configuración de la página
-st.set_page_config(page_title="Flora - Identificador Botánico", layout="centered", page_icon="🌿")
+st.set_page_config(page_title="Flora ID", layout="centered")
 
-# Estilo para el botón de análisis
-st.markdown("""
-    <style>
-    .stButton>button { width: 100%; background-color: #2e7d32; color: white; font-weight: bold; height: 3.5em; border-radius: 10px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("🌿 Flora: Análisis Botánico")
-st.write("Identificación científica asistida por IA para investigadores.")
-
-# 2. Configuración de la API con la librería estable
+# Configuración con la librería estable (evita el error v1beta)
 try:
-    # Busca la clave en Settings > Secrets de Streamlit Cloud
-    api_key = st.secrets["GOOGLE_API_KEY"]
-    genai.configure(api_key=api_key)
-except Exception:
-    st.error("⚠️ Error: Configura 'GOOGLE_API_KEY' en los Secrets de Streamlit.")
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+except:
+    st.error("Error: Revisa los Secrets en Streamlit Cloud.")
     st.stop()
 
-# 3. Interfaz de usuario
-opcion = st.radio("Fuente de imagen:", ["📷 Cámara", "📁 Archivo"], horizontal=True)
-archivo = st.camera_input("Capturar") if opcion == "📷 Cámara" else st.file_uploader("Sube imagen", type=["jpg", "png", "jpeg"])
+st.title("🌿 Flora: Análisis Botánico")
+
+archivo = st.camera_input("Capturar planta") or st.file_uploader("Subir imagen", type=["jpg", "png", "jpeg"])
 
 if archivo:
-    img = Image.open(archivo)
-    if opcion == "📁 Archivo":
-        st.image(img, use_container_width=True)
-
-    if st.button("🔍 INICIAR IDENTIFICACIÓN"):
-        with st.spinner('Consultando base de datos botánica...'):
+    if st.button("🔍 IDENTIFICAR"):
+        with st.spinner('Analizando...'):
             try:
-                # Usamos el modelo estable 1.5 Flash
+                # Nombre de modelo estándar (sin prefijos models/ ni v1beta)
                 model = genai.GenerativeModel('gemini-1.5-flash')
+                img = Image.open(archivo)
                 
-                prompt = (
-                    "Actúa como un botánico experto. Identifica esta planta y proporciona: "
-                    "Nombre científico, familia, nombres comunes (incluyendo nombres en Maya si es de la región), "
-                    "distribución neotropical y estatus de conservación (NOM-059/UICN)."
-                )
-
-                # Generar contenido (formato compatible con la librería estable)
+                prompt = "Identifica esta planta: Nombre científico, familia, nombres comunes (incluye Maya), hábitat y estatus NOM-059."
                 response = model.generate_content([prompt, img])
                 
-                st.success("Análisis completado")
-                st.markdown(f"### Ficha Técnica:\n{response.text}")
-
+                st.success("Resultado:")
+                st.write(response.text)
             except Exception as e:
-                if "429" in str(e):
-                    st.warning("⏳ Cuota excedida. Tu tarjeta está activa, pero Google puede tardar hasta 48h en liberar los límites totales. Reintenta en unos minutos.")
-                else:
-                    st.error(f"Detalle técnico del error: {e}")
-
-st.divider()
-st.caption("Investigación Científica | ECOSUR Chetumal")
+                st.error(f"Error de comunicación: {e}")
