@@ -1,33 +1,39 @@
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 from PIL import Image
 
 st.set_page_config(page_title="Flora ID", layout="centered", page_icon="🌿")
 st.title("🌿 Flora: Análisis Botánico")
 
-# Nueva forma de configurar Gemini en 2026
+# 1. Configuración de API (Forzamos la ruta estable)
 if "GOOGLE_API_KEY" in st.secrets:
-    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.error("⚠️ Configura la API Key en los Secrets (borra el ejemplo anterior).")
+    st.error("⚠️ Falta la GOOGLE_API_KEY en los Secrets.")
     st.stop()
 
-archivo = st.camera_input("Capturar planta") or st.file_uploader("Subir imagen", type=["jpg", "png", "jpeg"])
+archivo = st.camera_input("Capturar planta")
 
 if archivo:
     if st.button("🔍 IDENTIFICAR"):
-        with st.spinner('Identificando con Gemini 3 Flash...'):
+        with st.spinner('Procesando con el motor estable...'):
             try:
-                img = Image.open(archivo)
+                # Cambiamos el nombre al identificador técnico universal
+                # 'gemini-1.5-flash' es el motor que impulsa a Gemini 3 actualmente en la API
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 
-                # Llamada al modelo Gemini 3 Flash
-                response = client.models.generate_content(
-                    model="gemini-3-flash",
-                    contents=["Actúa como botánico experto de ECOSUR. Identifica: Nombre científico, familia, nombres en Maya y estatus NOM-059.", img]
+                img = Image.open(archivo)
+                prompt = (
+                    "Actúa como un botánico experto de ECOSUR. Identifica esta planta: "
+                    "Nombre científico, familia, nombres comunes (incluye Maya) y estatus NOM-059."
                 )
                 
-                st.success("¡Identificación exitosa!")
-                st.markdown(response.text)
+                response = model.generate_content([prompt, img])
+                
+                if response.text:
+                    st.success("¡Análisis completado!")
+                    st.markdown(response.text)
                 
             except Exception as e:
-                st.error(f"Error técnico: {e}")
+                st.error(f"Error: {e}")
+                st.info("Si el error persiste, verifica que la API Key en los Secrets sea la correcta.")
