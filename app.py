@@ -1,29 +1,33 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 
+st.set_page_config(page_title="Flora ID", layout="centered", page_icon="🌿")
 st.title("🌿 Flora: Análisis Botánico")
 
-# 1. Conexión directa con el Secret
+# Nueva forma de configurar Gemini en 2026
 if "GOOGLE_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
-    st.error("⚠️ Error: No se encontró la API Key en los Secrets.")
+    st.error("⚠️ Configura la API Key en los Secrets (borra el ejemplo anterior).")
     st.stop()
 
-# 2. Interfaz de cámara
-archivo = st.camera_input("Capturar planta")
+archivo = st.camera_input("Capturar planta") or st.file_uploader("Subir imagen", type=["jpg", "png", "jpeg"])
 
 if archivo:
     if st.button("🔍 IDENTIFICAR"):
-        with st.spinner('Analizando...'):
+        with st.spinner('Identificando con Gemini 3 Flash...'):
             try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
                 img = Image.open(archivo)
-                prompt = "Identifica esta planta: Nombre científico, familia y nombres en Maya."
                 
-                response = model.generate_content([prompt, img])
-                st.success("¡Logrado!")
+                # Llamada al modelo Gemini 3 Flash
+                response = client.models.generate_content(
+                    model="gemini-3-flash",
+                    contents=["Actúa como botánico experto de ECOSUR. Identifica: Nombre científico, familia, nombres en Maya y estatus NOM-059.", img]
+                )
+                
+                st.success("¡Identificación exitosa!")
                 st.markdown(response.text)
+                
             except Exception as e:
                 st.error(f"Error técnico: {e}")
