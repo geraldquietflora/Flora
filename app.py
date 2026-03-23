@@ -4,63 +4,64 @@ from PIL import Image
 from io import BytesIO
 import base64
 
-st.set_page_config(page_title="Flora ID", layout="centered", page_icon="🌿")
-st.title("🌿 Flora: Análisis Botánico Especializado")
+# Configuración de la interfaz
+st.set_page_config(page_title="Flora ID - Campo", layout="centered", page_icon="🌿")
+st.title("🌿 Flora: Identificación Botánica")
+st.caption("Versión Optimizada para Trabajo en Campo (ECOSUR)")
 
+# Verificación de API Key
 api_key = st.secrets.get("GOOGLE_API_KEY")
 if not api_key:
-    st.error("⚠️ Configura la GOOGLE_API_KEY en los Secrets.")
+    st.error("⚠️ Configura la GOOGLE_API_KEY en los Secrets de Streamlit.")
     st.stop()
 
-st.write("### Captura o selecciona una imagen de muestra")
-foto = st.camera_input("Tomar foto con la cámara") or st.file_uploader("O subir archivo", type=["jpg", "png", "jpeg"])
+# Entrada de imagen
+st.write("### Captura o selecciona una muestra")
+foto = st.camera_input("Tomar foto") or st.file_uploader("O subir archivo", type=["jpg", "png", "jpeg"])
 
 if foto:
-    if st.button("🔍 IDENTIFICAR ESPECIE (ANÁLISIS BOTÁNICO)"):
-        with st.spinner('Realizando análisis morfológico detallado...'):
+    if st.button("🔍 ANALIZAR ESPECIE"):
+        with st.spinner('Procesando caracteres morfológicos...'):
             try:
-                # Preparar imagen
+                # 1. Preparación de imagen
                 img = Image.open(foto)
                 buffered = BytesIO()
                 img.save(buffered, format="JPEG")
                 img_str = base64.b64encode(buffered.getvalue()).decode()
 
-                # 1. AUTO-DETECCIÓN DE MODELO (Usamos lo que ya funciona)
+                # 2. Obtener lista de modelos y filtrar por cuota (FLASH SOLAMENTE)
                 models_url = f"https://generativelanguage.googleapis.com/v1/models?key={api_key}"
                 models_resp = requests.get(models_url).json()
                 
-                # Buscamos el modelo más capaz (preferimos pro, luego flash)
-                available_models = [m['name'] for m in models_resp.get('models', []) 
-                                   if 'generateContent' in m.get('supportedGenerationMethods', [])]
-                
-                # Priorizar modelos Pro si están disponibles, si no Flash 2.5/1.5
-                best_model = None
-                for m_name in ['pro', 'flash-2.5', 'flash-1.5', 'flash']:
-                    for avail in available_models:
-                        if m_name in avail:
-                            best_model = avail
-                            break
-                    if best_model: break
-                
-                if not best_model:
-                    st.error("No se encontraron modelos compatibles.")
+                # Buscamos modelos que soporten generación de contenido y que sean FLASH
+                # Esto evita el Error 429 de los modelos Pro que tienen cuota 0 o muy baja
+                available_flash_models = [
+                    m['name'] for m in models_resp.get('models', []) 
+                    if 'generateContent' in m.get('supportedGenerationMethods', []) 
+                    and 'flash' in m['name'].lower()
+                ]
+
+                if not available_flash_models:
+                    st.error("No se encontraron modelos Flash disponibles en tu cuenta.")
                     st.stop()
-                
-                # 2. PROMPT ESPECIALIZADO PARA PRECISIÓN CIENTÍFICA
-                # Este prompt obliga al modelo a analizar caracteres diagnósticos
+
+                # Seleccionamos el modelo más reciente (usualmente el primero o gemini-1.5-flash)
+                selected_model = available_flash_models[0]
+
+                # 3. Prompt especializado para rigor científico
                 prompt_text = (
-                    "Actúa como un botánico taxónomo experto en la Flora de la Península de Yucatán (MEXU/ECOSUR). "
-                    "Analiza esta imagen con extremo rigor botánico. Tu objetivo es la precisión, no la velocidad. "
-                    "Por favor, sigue este protocolo de identificación: \n"
-                    "1. ANALIZA LA MORFOLOGÍA VISIBLE: Describe caracteres diagnósticos clave (filotaxia, forma y margen foliar, presencia/tipo de pubescencia, caracteres florales o de fruto si son visibles). \n"
-                    "2. IDENTIFICA LA ESPECIE: Proporciona el Nombre Científico, Autoría, Familia (con ortografía correcta, ej. Fabaceae, no Leguminosae) y Nombres Comunes (destacando el Maya y su contexto cultural si aplica). \n"
-                    "3. VERIFICA CON FLORA LOCAL: Asegúrate de que la especie propuesta esté distribuida en la Península de Yucatán o el Caribe mexicano. \n"
-                    "4. CONFIRMACIÓN Y DUDA: Si la identificación no es 100% segura debido a la calidad de imagen o falta de caracteres diagnósticos, indícalo claramente y sugiere qué caracteres faltan (ej. 'Requiere observación de estípulas'). \n"
-                    "5. ESTATUS DE CONSERVACIÓN: Menciona su categoría en la NOM-059-SEMARNAT-2010 (P, A, Pr, Pr*, E) o si No Aplica."
+                    "Actúa como un botánico taxónomo experto en la Flora de la Península de Yucatán. "
+                    "Analiza la imagen y responde con este rigor: \n"
+                    "1. MORFOLOGÍA: Describe caracteres diagnósticos visibles (hojas, flores, tallo). \n"
+                    "2. IDENTIFICACIÓN: Nombre científico (con autor), Familia y Nombres Comunes (énfasis en Maya). \n"
+                    "3. DISTRIBUCIÓN: Confirma si es nativa o introducida en la Península de Yucatán. \n"
+                    "4. NOM-059: Indica estatus de conservación si aplica. \n"
+                    "Si la foto no es clara, indica qué carácter falta para una identificación segura."
                 )
 
-                # 3. PETICIÓN AL SERVIDOR
-                url = f"https://generativelanguage.googleapis.com/v1/{best_model}:generateContent?key={api_key}"
+                # 4. Petición Directa (Evita el error 404)
+                url = f"https://generativelanguage.googleapis.com/v1/{selected_model}:generateContent?key={api_key}"
+                
                 payload = {
                     "contents": [{
                         "parts": [
@@ -75,11 +76,16 @@ if foto:
 
                 if response.status_code == 200:
                     resultado = res_json['candidates'][0]['content']['parts'][0]['text']
-                    st.success(f"Análisis completado con {best_model}")
+                    st.success(f"Analizado con {selected_model}")
                     st.markdown("---")
                     st.markdown(resultado)
+                elif response.status_code == 429:
+                    st.warning("⚠️ Cuota temporal agotada. Por favor, espera 10 segundos y presiona el botón de nuevo.")
                 else:
-                    st.error(f"Error {response.status_code}: {res_json}")
+                    st.error(f"Error {response.status_code}: {res_json.get('error', {}).get('message', 'Error desconocido')}")
 
             except Exception as e:
                 st.error(f"Error técnico: {e}")
+
+st.markdown("---")
+st.info("Nota: Este motor prioriza modelos 'Flash' para garantizar disponibilidad en campo.")
