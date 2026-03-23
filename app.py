@@ -1,44 +1,56 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
+import base64
 from PIL import Image
+from io import BytesIO
 
-# Configuración inicial
 st.set_page_config(page_title="Flora ID", layout="centered", page_icon="🌿")
 st.title("🌿 Flora: Análisis Botánico")
 
-# Conexión con la API Key de los Secrets
-if "GOOGLE_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-else:
-    st.error("⚠️ Falta la GOOGLE_API_KEY en los Secrets de Streamlit.")
+# 1. Obtener la llave desde Secrets
+api_key = st.secrets.get("GOOGLE_API_KEY")
+
+if not api_key:
+    st.error("⚠️ Falta la GOOGLE_API_KEY en los Secrets.")
     st.stop()
 
-# Interfaz: Cámara y Selector de Archivos (Tal como funcionaba)
+# 2. Interfaz con Cámara + Subida de Archivos
 st.write("### Captura o selecciona una imagen")
-archivo_camara = st.camera_input("Tomar foto con la cámara")
-archivo_galeria = st.file_uploader("O elige una imagen de tu dispositivo", type=["jpg", "png", "jpeg"])
+foto = st.camera_input("Tomar foto") or st.file_uploader("O seleccionar de galería", type=["jpg", "png", "jpeg"])
 
-# Selección de la fuente de imagen
-archivo = archivo_camara or archivo_galeria
-
-if archivo:
+if foto:
     if st.button("🔍 IDENTIFICAR ESPECIE"):
-        with st.spinner('Consultando al botánico virtual...'):
+        with st.spinner('Comunicación directa con el motor de IA...'):
             try:
-                # Usamos el modelo que funcionaba perfectamente antes de los errores 404
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                img = Image.open(archivo)
+                # Convertir imagen a Base64
+                img = Image.open(foto)
+                buffered = BytesIO()
+                img.save(buffered, format="JPEG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+
+                # URL DE PRODUCCIÓN FORZADA (v1) - Aquí se elimina el error 404
+                url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
                 
-                prompt = (
-                    "Actúa como un botánico experto de la Península de Yucatán. Identifica esta planta y proporciona: "
-                    "Nombre científico, familia, nombres comunes (incluyendo nombres en Maya) y estatus de conservación NOM-059."
-                )
-                
-                response = model.generate_content([prompt, img])
-                
-                st.success("¡Identificación completada!")
-                st.markdown("---")
-                st.markdown(response.text)
-                
+                payload = {
+                    "contents": [{
+                        "parts": [
+                            {"text": "Actúa como botánico experto de ECOSUR. Identifica esta planta: Nombre científico, familia, nombres comunes (Maya) y estatus NOM-059."},
+                            {"inline_data": {"mime_type": "image/jpeg", "data": img_str}}
+                        ]
+                    }]
+                }
+
+                # Petición directa al servidor de Google
+                response = requests.post(url, json=payload)
+                res_json = response.json()
+
+                if response.status_code == 200:
+                    resultado = res_json['candidates'][0]['content']['parts'][0]['text']
+                    st.success("¡Identificación completada con éxito!")
+                    st.markdown("---")
+                    st.markdown(resultado)
+                else:
+                    st.error(f"Error de Google (Código {response.status_code}): {res_json.get('error', {}).get('message', 'Error desconocido')}")
+
             except Exception as e:
                 st.error(f"Error técnico: {e}")
